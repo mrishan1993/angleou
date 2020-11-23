@@ -1,7 +1,7 @@
-const errorController = {
-  notFoundController: function(request, h) {
+const ErrorController = {
+  NotFoundController: function(request, h) {
     return '404 Error! Page Not Found!';
   },
 };
 
-module.exports = errorController;
+module.exports = ErrorController;

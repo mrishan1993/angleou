@@ -1,11 +1,11 @@
-loginController = require('../controllers/loginController');
+LoginController = require('../controllers/LoginController');
 
-const loginRoute = {
-  userLoginRoute: {
+const LoginRoute = {
+  UserLoginRoute: {
     method: '*',
     path: '/login',
-    handler: loginController.userLoginController,
+    handler: LoginController.UserLoginController,
   },
 };
 
-module.exports = loginRoute;
+module.exports = LoginRoute;

@@ -2,8 +2,8 @@
 const config = require('../config');
 const axios = require('axios');
 
-const loginController = {
-    userLoginController: async function(request, h) {
+const LoginController = {
+    UserLoginController: async function(request, h) {
         console.log('inside userLoginController', request)
         var userToken = request.payload.response.accessToken;
         var accessToken = ''
@@ -52,5 +52,5 @@ const loginController = {
     },
   };
   
-  module.exports = loginController;
+  module.exports = LoginController;
   

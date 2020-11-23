@@ -1,11 +1,11 @@
-errorController = require('../controllers/errorController');
+ErrorController = require('../controllers/ErrorController');
 
-const errorRoute = {
-  notFoundRoute: {
+const ErrorRoute = {
+  NotFoundRoute: {
     method: '*',
     path: '/{any*}',
-    handler: errorController.notFoundController,
+    handler: ErrorController.NotFoundController,
   },
 };
 
-module.exports = errorRoute;
+module.exports = ErrorRoute;
