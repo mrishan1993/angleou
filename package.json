@@ -1,0 +1,25 @@
+{
+  "name": "angelou",
+  "version": "1.0.0",
+  "description": "This is the backend for login functionality for Stuti's <3 Project. Has to handle native login, Facebook OAuth and Google OAuth. Should be build to be used as a plug and play microservice. Has to be connected to mysql and mongodb. First used for social network. ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "backend",
+    "stuti",
+    "project",
+    "login",
+    "microservice",
+    "google",
+    "facebook",
+    "native",
+    "oauth"
+  ],
+  "author": "Ishan Gupta",
+  "license": "ISC",
+  "dependencies": {
+    "@hapi/hapi": "^20.0.2"
+  }
+}
