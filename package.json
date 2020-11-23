@@ -20,6 +20,9 @@
   "author": "Ishan Gupta",
   "license": "ISC",
   "dependencies": {
-    "@hapi/hapi": "^20.0.2"
+    "@hapi/hapi": "^20.0.2",
+    "async": "^3.2.0",
+    "axios": "^0.21.0",
+    "lodash": "^4.17.20"
   }
 }

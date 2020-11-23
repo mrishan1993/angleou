@@ -1,8 +1,8 @@
 'use strict';
 
 const Hapi = require('@hapi/hapi');
-var witRoute = require('./routes/witRoute.js');
 var errorRoute = require('./routes/errorRoute.js');
+var loginRoute = require('./routes/loginRoute.js');
 var auth = require('./middleware/auth.js');
 
 const init = async () => {
@@ -27,8 +27,8 @@ const init = async () => {
   await server.register({
     plugin: auth,
   });
-  server.route(witRoute.witProcess);
   server.route(errorRoute.notFoundRoute);
+  server.route(loginRoute.userLoginRoute);
 
   await server.start();
 
