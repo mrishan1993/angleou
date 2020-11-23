@@ -10,6 +10,11 @@ Migrations are needed to be regularly updated when there are changes in the data
 - Functions are to be named with PascalCasing. 
 	- Functions are controllers and routes. 
 - Variables are to be named with camelCasing. 
-- API keys from third parties are handled with snake_casing 
+	- Variables are to be declared at the top of the function scope. 
+	- Global variables are to be declared at the top of the file. 
+- API keys from third parties are handled with snake_casing .
+- Use proper meaningful names. 
+- Remember to put sanity checks. 
+- Comment as much as you can. Comments are the soul of the application. 
 
 ***Inception by Ishan Gupta. That's all folks for now!***
