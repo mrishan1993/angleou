@@ -4,6 +4,7 @@ const Hapi = require('@hapi/hapi');
 var ErrorRoute = require('./routes/ErrorRoute.js');
 var LoginRoute = require('./routes/LoginRoute.js');
 var auth = require('./middleware/auth.js');
+const config = require('./config')
 
 const init = async () => {
   const server = Hapi.server({
@@ -24,6 +25,16 @@ const init = async () => {
   //     decorate: true,
   //   },
   // });
+  // connect to mysql 
+  await server.register({
+    plugin: require('hapi-plugin-mysql'),
+    options: {
+        host: config.hostname,
+        user: config.mySQLUsername,
+        password: config.mySQLPassword,
+        database: 'angelou'
+    }
+  });
   await server.register({
     plugin: auth,
   });

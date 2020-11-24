@@ -23,6 +23,7 @@
     "@hapi/hapi": "^20.0.2",
     "async": "^3.2.0",
     "axios": "^0.21.0",
+    "hapi-plugin-mysql": "^7.2.3",
     "lodash": "^4.17.20"
   }
 }
