@@ -9,7 +9,9 @@ const config = {
   // db connections. need to be migrated to env constants
   hostname: '127.0.0.1',
   mySQLUsername: 'root',
-  mySQLPassword: 'ishu'
+  mySQLPassword: 'ishu',
+  // super secret
+  jwtSecret: 'sQJEWG7XSKLnKebCtp2rsSYILug8Wzqr'
 };
 
 module.exports = config;

@@ -2,6 +2,10 @@
 const config = require('../config');
 const constants = require('../constants');
 const axios = require('axios');
+var _ = require('lodash')
+var jwt = require('jsonwebtoken');
+var bcrypt = require('bcryptjs');
+var moment = require('moment')
 
 const LoginController = {
     UserLoginController: async function(request, h) {
@@ -27,8 +31,9 @@ var LoginFacebook = async (request) => {
     var facebookClientKey = config.facebookClientKey
     var appLink = config.facebookAppURL + 'client_id=' + facebookClientID + '&client_secret=' + facebookClientKey + '&grant_type=client_credentials'
     var tokenLink = config.facebookTokenLink
-    var OAuthResult = await GetFacebookOAuthResponse(appLink)
-    var accessToken = OAuthResult.access_token
+    var oAuthResult = await GetFacebookOAuthResponse(appLink)
+    var accessToken = oAuthResult.access_token
+    var userLoginDetails = {}
     var facebookGraphResult = {}
     tokenLink = tokenLink + 'input_token=' + userToken + '&access_token=' + accessToken
     facebookGraphResult = await GetFacebookGraph(tokenLink)
@@ -38,10 +43,13 @@ var LoginFacebook = async (request) => {
         // Let the user login 
         expiryTime = request.payload.response.data_access_expiration_time
         // check if the user is already in the database. Update the access token and expiration. Else create a new user. 
-        if (await IsUserRegistered(request)) {
-            await RegisterUser(request) 
+        userLoginDetails = await IsUserRegistered(request)
+        if (userLoginDetails.isRegistered) {
+            
         } else {
             // handle registering of the user
+            userLoginDetails = await RegisterUser(request, facebookGraphResult, oAuthResult) 
+            console.log(userLoginDetails)
         }
         
 
@@ -101,13 +109,39 @@ var GetFacebookGraph = async (tokenLink) => {
 var IsUserRegistered = async (request) => {
     var result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
     if (result.length > 0) {
-        return true
+        // handle problem if rows are more than 1
+        return {
+            result : _.head(result),
+            isRegistered: true
+        }
     } 
-    return false
+    return {
+        result: {},
+        isRegistered: false
+    }
 }
 // Register the user 
-var RegisterUser = async () => {
-
+var RegisterUser = async (request, facebookGraphResult, oAuthResult) => {
+    var result = {}
+    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+        expiresIn: 86400 // in 24 hours
+    })
+    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
+    var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
+    var sourceExpiration = moment(facebookGraphResult.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
+    var dbQuery = "insert into user_login (source_user_id, user_type_id, " +
+        "email, access_token, access_token_expiry, " +
+        "source_access_token, source_access_token_expiry, last_login, " +
+        "created_at, updated_at, active, archive) " + 
+        "values ('" + request.payload.response.id + "', " + "2, '" + request.payload.response.email + "', '" +
+        token + "', '" +  expirationTime + "', '" + oAuthResult.access_token + "', '" + 
+        sourceExpiration + "', '" + timeNow + "', '" + timeNow + "', '" + timeNow + "', " + "1, 0" + ")"
+    await request.app.db.query(dbQuery)
+    result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
+    return {
+        result: _.head(result),
+        isRegistered: true
+    }
 }
 module.exports = LoginController;
   
