@@ -10,15 +10,25 @@ var moment = require('moment')
 const LoginController = {
     UserLoginController: async function(request, h) {
         console.log('inside userLoginController', request)
+        var result = {}
         if (request && request.payload && request.payload.response) {
             // handle the request 
             if (request.payload.response.graphDomain === constants.FACEBOOK) {
                 // handle the facebook login
-                await LoginFacebook(request)
+                result = await LoginFacebook(request)
+                return {
+                    success: true,
+                    data: result,
+                    status: 200,
+                }
             }
         }    
         // check the user id 
-        return 'something went wrong'
+        return {
+            success: false,
+            status: 400,
+            data: {}
+        }
     },
 };
   
@@ -45,11 +55,11 @@ var LoginFacebook = async (request) => {
         // check if the user is already in the database. Update the access token and expiration. Else create a new user. 
         userLoginDetails = await IsUserRegistered(request)
         if (userLoginDetails.isRegistered) {
-            
+            return userLoginDetails
         } else {
             // handle registering of the user
             userLoginDetails = await RegisterUser(request, facebookGraphResult, oAuthResult) 
-            console.log(userLoginDetails)
+            return userLoginDetails
         }
         
 
