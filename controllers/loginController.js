@@ -55,11 +55,12 @@ var LoginFacebook = async (request) => {
         // check if the user is already in the database. Update the access token and expiration. Else create a new user. 
         userLoginDetails = await IsUserRegistered(request)
         if (userLoginDetails.isRegistered) {
-            return userLoginDetails
+            userLoginDetails = await UpdateUserLogin(request, facebookGraphResult, oAuthResult)
+            return userLoginDetails.result
         } else {
             // handle registering of the user
             userLoginDetails = await RegisterUser(request, facebookGraphResult, oAuthResult) 
-            return userLoginDetails
+            return userLoginDetails.result
         }
         
 
@@ -150,6 +151,24 @@ var RegisterUser = async (request, facebookGraphResult, oAuthResult) => {
     result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
     return {
         result: _.head(result),
+        isRegistered: true
+    }
+}
+var UpdateUserLogin = async (request, facebookGraphResult, oAuthResult) => {
+    var result = {}
+    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+        expiresIn: 86400 // in 24 hours
+    })
+    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
+    var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
+    var sourceExpiration = moment(facebookGraphResult.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
+    var dbQuery = "update user_login set access_token = '" + token + "', access_token_expiry = '" + expirationTime + 
+    "', source_access_token = '" + oAuthResult.access_token + "', source_access_token_expiry = '" + sourceExpiration +
+    "', last_login = '" + timeNow + "', updated_at = '" + timeNow + "' where source_user_id = '" + request.payload.response.id + "'"
+    await request.app.db.query(dbQuery)
+    result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
+    return {
+        result : _.head(result),
         isRegistered: true
     }
 }
