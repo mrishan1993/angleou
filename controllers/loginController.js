@@ -18,18 +18,33 @@ const LoginController = {
             if (request.payload.response.graphDomain === constants.FACEBOOK) {
                 // handle the facebook login
                 result = await LoginFacebook(request)
-                return {
-                    success: true,
-                    data: result,
-                    status: 200,
+                if (Object.keys(result).length === 0 && result.constructor === Object) {
+                    return {
+                        success: false,
+                        status: 400,
+                    }
+                } else {
+                    return {
+                        success: true,
+                        data: result,
+                        status: 200,
+                    }
                 }
+                
             } else if (request && request.payload && request.payload.response && request.payload.response.googleId) {
                 // handle google request 
                 result = await LoginGoogle(request)
-                return {
-                    success: true,
-                    data: result, 
-                    status: 200
+                if (Object.keys(result).length === 0 && result.constructor === Object) {
+                    return {
+                        success: false,
+                        status: 400,
+                    }
+                } else {
+                    return {
+                        success: true,
+                        data: result,
+                        status: 200,
+                    }
                 }
             } 
         }    
@@ -55,6 +70,12 @@ var LoginGoogle = async (request) => {
         const payload = ticket.getPayload();
         const userID = payload.sub
         userLoginDetails = await IsUserRegistered(request)
+        if (userLoginDetails.isRegistered) {
+
+        } else {
+            userLoginDetails = await RegisterUser(request, payload) 
+            return userLoginDetails.result
+        }
         // If request specified a G Suite domain:
         // const domain = payload['hd'];
     } catch (e) {
@@ -167,6 +188,12 @@ var GetFacebookGraph = async (tokenLink) => {
 }
 // Check if the user already exists
 var IsUserRegistered = async (request) => {
+    var userID;
+    if (request.payload.response.graphDomain === constants.FACEBOOK) {
+        userID = request.payload.response.userID
+    } else if (request.payload.response.googleId) {
+        userID = request.payload.response.googleId
+    }
     try {
         var result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
         if (result && result.length > 0) {
@@ -189,24 +216,35 @@ var IsUserRegistered = async (request) => {
     }
 }
 // Register the user 
-var RegisterUser = async (request, facebookGraphResult, oAuthResult) => {
+var RegisterUser = async (request, sourceToken, oAuthResult) => {
+    var result = {}
+    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+        expiresIn: 86400 // in 24 hours
+    })
+    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
+    var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
+    var userID
+    var sourceExpiration
+    var dbQuery
+    if (request.payload.response.googleId) {
+
+    } else if (request.payload.response.graphDomain === constants.FACEBOOK) {
+        sourceExpiration = moment(sourceToken.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
+        userID = request.payload.response.userID
+        dbQuery = "insert into user_login (source_user_id, user_type_id, " +
+        "email, access_token, access_token_expiry, " +
+        "source_access_token, source_access_token_expiry, last_login, " +
+        "created_at, updated_at, active, archive) " + 
+        "values ('" + request.payload.response.id + "', " + "2, '" + request.payload.response.email + "', '" +
+        token + "', '" +  expirationTime + "', '" + oAuthResult.access_token + "', '" + 
+        sourceExpiration + "', '" + timeNow + "', '" + timeNow + "', '" + timeNow + "', " + "1, 0" + ")"
+    } else {
+        
+    }
     try {
-        var result = {}
-        var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
-            expiresIn: 86400 // in 24 hours
-        })
-        var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
-        var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
-        var sourceExpiration = moment(facebookGraphResult.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
-        var dbQuery = "insert into user_login (source_user_id, user_type_id, " +
-            "email, access_token, access_token_expiry, " +
-            "source_access_token, source_access_token_expiry, last_login, " +
-            "created_at, updated_at, active, archive) " + 
-            "values ('" + request.payload.response.id + "', " + "2, '" + request.payload.response.email + "', '" +
-            token + "', '" +  expirationTime + "', '" + oAuthResult.access_token + "', '" + 
-            sourceExpiration + "', '" + timeNow + "', '" + timeNow + "', '" + timeNow + "', " + "1, 0" + ")"
+        
         await request.app.db.query(dbQuery)
-        result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
+        result = await request.app.db.query('select * from user_login where source_user_id = ' + userID )
         return {
             result: _.head(result),
             isRegistered: true
@@ -219,7 +257,7 @@ var RegisterUser = async (request, facebookGraphResult, oAuthResult) => {
         }
     }
 }
-var UpdateUserLogin = async (request, facebookGraphResult, oAuthResult) => {
+var UpdateUserLogin = async (request, sourceToken, oAuthResult) => {
     try {
         var result = {}
         var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
@@ -227,7 +265,7 @@ var UpdateUserLogin = async (request, facebookGraphResult, oAuthResult) => {
         })
         var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
         var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
-        var sourceExpiration = moment(facebookGraphResult.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
+        var sourceExpiration = moment(sourceToken.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
         var dbQuery = "update user_login set access_token = '" + token + "', access_token_expiry = '" + expirationTime + 
         "', source_access_token = '" + oAuthResult.access_token + "', source_access_token_expiry = '" + sourceExpiration +
         "', last_login = '" + timeNow + "', updated_at = '" + timeNow + "' where source_user_id = '" + request.payload.response.id + "'"
@@ -247,3 +285,4 @@ var UpdateUserLogin = async (request, facebookGraphResult, oAuthResult) => {
 }
 module.exports = LoginController;
   
+
