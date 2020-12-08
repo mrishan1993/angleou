@@ -35,6 +35,7 @@ const init = async () => {
         database: 'angelou'
     }
   });
+  
   await server.register({
     plugin: auth,
   });

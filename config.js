@@ -15,7 +15,9 @@ const config = {
   jwtSecret: 'sQJEWG7XSKLnKebCtp2rsSYILug8Wzqr',
   // google oauth keys 
   googleClientID: '273599308782-kkt7126gh4l82smi4un5hdspf1qmve7o.apps.googleusercontent.com',
-  googleClientSecret: 'EITuoadeFYBeohUcqy5gCtw6'
+  googleClientSecret: 'EITuoadeFYBeohUcqy5gCtw6',
+  googleOAuth2EndPoint : 'https://oauth2.googleapis.com/token',
+  redirectURL: 'http://localhost:3002'
 };
 
 module.exports = config;

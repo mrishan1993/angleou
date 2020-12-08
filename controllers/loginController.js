@@ -7,8 +7,9 @@ var jwt = require('jsonwebtoken');
 var bcrypt = require('bcryptjs');
 var moment = require('moment')
 const {OAuth2Client} = require('google-auth-library');
+const {google} = require('googleapis');
 const client = new OAuth2Client([config.googleClientID]);
-
+const knex = require ("../knex")
 const LoginController = {
     UserLoginController: async function(request, h) {
         console.log('inside userLoginController', request)
@@ -31,7 +32,7 @@ const LoginController = {
                     }
                 }
                 
-            } else if (request && request.payload && request.payload.response && request.payload.response.googleId) {
+            } else if (request && request.payload && request.payload.response && request.payload.response.code) {
                 // handle google request 
                 result = await LoginGoogle(request)
                 if (Object.keys(result).length === 0 && result.constructor === Object) {
@@ -59,21 +60,64 @@ const LoginController = {
   
 // Login through Google 
 var LoginGoogle = async (request) => {
+    var userObject = {}
+    var ticket = {}
+    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
+    var expirationTime = moment().add(1,'hours').format('YYYY-MM-DD HH:MM:SS')
+    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+        expiresIn: 86400 // in 24 hours
+    })
+    var userID;
+    var userLoginDetails = {}
+    // get access token and refresh token
     try {
-        var userLoginDetails = {}
-        const ticket = await client.verifyIdToken({
-            idToken: request.payload.response.tokenId,
-            audience: [config.googleClientID],  // Specify the CLIENT_ID of the app that accesses the backend
-            // Or, if multiple clients access the backend:
-            //[CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3]
+        var obj = {
+            client_id: config.googleClientID,
+            client_secret: config.googleClientSecret,
+            code: request.payload.response.code,
+            grant_type: 'authorization_code',
+            redirect_uri: config.redirectURL
+        }
+        await axios
+        .post(
+            config.googleOAuth2EndPoint
+        , obj)
+        .then(function(response) {
+        // handle success
+            result = response.data
+            console.log(response);
+        
+        })
+        .catch(function(error) {
+        // handle error
+            console.log(error);
+        })
+        .then(function() {
+        // always executed
         });
-        const payload = ticket.getPayload();
-        const userID = payload.sub
-        userLoginDetails = await IsUserRegistered(request)
+        ticket = await client.getTokenInfo(
+            result.access_token
+        )
+        userID = ticket.sub
+        userLoginDetails = await IsUserRegistered(userID)
         if (userLoginDetails.isRegistered) {
 
         } else {
-            userLoginDetails = await RegisterUser(request, payload) 
+            userObject = {
+                source_user_id: userID, 
+                user_type_id: 3,
+                email: ticket.email, 
+                access_token: token, 
+                access_token_expiry: expirationTime, 
+                source_access_token: ticket.refresh_token ? ticket.refresh_token : undefined, 
+                source_access_token_expiry: undefined, 
+                last_login : timeNow,
+                created_at: timeNow, 
+                updated_at: timeNow, 
+                active: 1,
+                archive: 0
+            }
+            userLoginDetails = await RegisterUser(userObject) 
             return userLoginDetails.result
         }
         // If request specified a G Suite domain:
@@ -88,10 +132,16 @@ var LoginGoogle = async (request) => {
 // Login through facebook 
 var LoginFacebook = async (request) => {
     var userToken = request.payload.response.accessToken;
-    var expiryTime = 0
     var userID = request.payload.response.userID
     var facebookClientID = config.facebookClientID
+    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
+    var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
+    var sourceExpiration
     var facebookClientKey = config.facebookClientKey
+    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+        expiresIn: 86400 // in 24 hours
+    })
+    var userObject = {}
     var appLink = config.facebookAppURL + 'client_id=' + facebookClientID + '&client_secret=' + facebookClientKey + '&grant_type=client_credentials'
     var tokenLink = config.facebookTokenLink
     var oAuthResult = await GetFacebookOAuthResponse(appLink)
@@ -102,18 +152,33 @@ var LoginFacebook = async (request) => {
         tokenLink = tokenLink + 'input_token=' + userToken + '&access_token=' + accessToken
         facebookGraphResult = await GetFacebookGraph(tokenLink)
         console.log('facebookGraph', facebookGraphResult)
+        sourceExpiration = moment(facebookGraphResult.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
         if (facebookGraphResult && facebookGraphResult.data && facebookGraphResult.data.data && userID === facebookGraphResult.data.data.user_id) {
             // OAuth Verified. 
             // Let the user login 
             expiryTime = request.payload.response.data_access_expiration_time
             // check if the user is already in the database. Update the access token and expiration. Else create a new user. 
-            userLoginDetails = await IsUserRegistered(request)
+            userLoginDetails = await IsUserRegistered(userID)
             if (userLoginDetails.isRegistered) {
                 userLoginDetails = await UpdateUserLogin(request, facebookGraphResult, oAuthResult)
                 return userLoginDetails.result
             } else {
                 // handle registering of the user
-                userLoginDetails = await RegisterUser(request, facebookGraphResult, oAuthResult) 
+                userObject = {
+                    source_user_id: request.payload.response.id, 
+                    user_type_id: 2,
+                    email: request.payload.response.email, 
+                    access_token: token, 
+                    access_token_expiry: expirationTime, 
+                    source_access_token: oAuthResult.access_token, 
+                    source_access_token_expiry: sourceExpiration, 
+                    last_login : timeNow,
+                    created_at: timeNow, 
+                    updated_at: timeNow, 
+                    active: 1,
+                    archive: 0
+                }
+                userLoginDetails = await RegisterUser(userObject) 
                 return userLoginDetails.result
             }
             
@@ -187,15 +252,13 @@ var GetFacebookGraph = async (tokenLink) => {
     }
 }
 // Check if the user already exists
-var IsUserRegistered = async (request) => {
-    var userID;
-    if (request.payload.response.graphDomain === constants.FACEBOOK) {
-        userID = request.payload.response.userID
-    } else if (request.payload.response.googleId) {
-        userID = request.payload.response.googleId
-    }
+var IsUserRegistered = async (userID) => {
+    var userID = userID;
     try {
-        var result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
+        var result = await knex('user_login').where({
+                                source_user_id: userID
+                            })
+        // var result = await request.app.db.query('select * from user_login where source_user_id = ' + userID )
         if (result && result.length > 0) {
             // handle problem if rows are more than 1
             return {
@@ -216,35 +279,31 @@ var IsUserRegistered = async (request) => {
     }
 }
 // Register the user 
-var RegisterUser = async (request, sourceToken, oAuthResult) => {
+var RegisterUser = async (userObject) => {
     var result = {}
-    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
-        expiresIn: 86400 // in 24 hours
-    })
-    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
-    var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
-    var userID
-    var sourceExpiration
     var dbQuery
-    if (request.payload.response.googleId) {
-
-    } else if (request.payload.response.graphDomain === constants.FACEBOOK) {
-        sourceExpiration = moment(sourceToken.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
-        userID = request.payload.response.userID
+    if (userObject.source_access_token) {
         dbQuery = "insert into user_login (source_user_id, user_type_id, " +
         "email, access_token, access_token_expiry, " +
         "source_access_token, source_access_token_expiry, last_login, " +
         "created_at, updated_at, active, archive) " + 
-        "values ('" + request.payload.response.id + "', " + "2, '" + request.payload.response.email + "', '" +
-        token + "', '" +  expirationTime + "', '" + oAuthResult.access_token + "', '" + 
-        sourceExpiration + "', '" + timeNow + "', '" + timeNow + "', '" + timeNow + "', " + "1, 0" + ")"
+        "values ('" + userObject.source_user_id + "', '" + userObject.user_type_id + "', '" + userObject.email + "', '" +
+        userObject.access_token + "', '" +  userObject.access_token_expiry + "', '" + userObject.source_access_token + "', '" + 
+        userObject.source_access_token_expiry + "', '" + userObject.last_login + "', '" + userObject.created_at + "', '" + userObject.updated_at + "', " + userObject.active + "," + userObject.archive + ")"
     } else {
-        
+        dbQuery = "insert into user_login (source_user_id, user_type_id, " +
+        "email, access_token, access_token_expiry, " +
+        "last_login, " +
+        "created_at, updated_at, active, archive) " + 
+        "values ('" + userObject.source_user_id + "', '" + userObject.user_type_id + "', '" + userObject.email + "', '" +
+        userObject.access_token + "', '" +  userObject.access_token_expiry + "', '" + 
+        userObject.last_login + "', '" + userObject.created_at + "', '" + userObject.updated_at + "', " + userObject.active + "," + userObject.archive + ")"
     }
+    
+    
     try {
-        
         await request.app.db.query(dbQuery)
-        result = await request.app.db.query('select * from user_login where source_user_id = ' + userID )
+        result = await request.app.db.query('select * from user_login where source_user_id = ' + userObject.source_user_id )
         return {
             result: _.head(result),
             isRegistered: true
