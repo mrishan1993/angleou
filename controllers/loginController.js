@@ -256,7 +256,9 @@ var IsUserRegistered = async (userID) => {
     var userID = userID;
     try {
         var result = await knex('user_login').where({
-                                source_user_id: userID
+                                source_user_id: userID,
+                                active: 1,
+                                archive: 0
                             })
         // var result = await request.app.db.query('select * from user_login where source_user_id = ' + userID )
         if (result && result.length > 0) {
@@ -282,28 +284,27 @@ var IsUserRegistered = async (userID) => {
 var RegisterUser = async (userObject) => {
     var result = {}
     var dbQuery
-    if (userObject.source_access_token) {
-        dbQuery = "insert into user_login (source_user_id, user_type_id, " +
-        "email, access_token, access_token_expiry, " +
-        "source_access_token, source_access_token_expiry, last_login, " +
-        "created_at, updated_at, active, archive) " + 
-        "values ('" + userObject.source_user_id + "', '" + userObject.user_type_id + "', '" + userObject.email + "', '" +
-        userObject.access_token + "', '" +  userObject.access_token_expiry + "', '" + userObject.source_access_token + "', '" + 
-        userObject.source_access_token_expiry + "', '" + userObject.last_login + "', '" + userObject.created_at + "', '" + userObject.updated_at + "', " + userObject.active + "," + userObject.archive + ")"
-    } else {
-        dbQuery = "insert into user_login (source_user_id, user_type_id, " +
-        "email, access_token, access_token_expiry, " +
-        "last_login, " +
-        "created_at, updated_at, active, archive) " + 
-        "values ('" + userObject.source_user_id + "', '" + userObject.user_type_id + "', '" + userObject.email + "', '" +
-        userObject.access_token + "', '" +  userObject.access_token_expiry + "', '" + 
-        userObject.last_login + "', '" + userObject.created_at + "', '" + userObject.updated_at + "', " + userObject.active + "," + userObject.archive + ")"
-    }
-    
-    
+    knex("user_login").insert({
+        source_user_id: userObject.source_user_id,
+        user_type_id: userObject.user_type_id,
+        email: userObject.email,
+        access_token: userObject.access_token, 
+        access_token_expiry: userObject.access_token_expiry,
+        source_access_token: userObject.source_access_token, 
+        source_access_token_expiry: userObject.source_access_token_expiry, 
+        last_login: userObject.last_login, 
+        created_at: userObject.created_at, 
+        updated_at: userObject.updated_at, 
+        active: userObject.active, 
+        archive: userObject.archive
+    }) 
     try {
         await request.app.db.query(dbQuery)
-        result = await request.app.db.query('select * from user_login where source_user_id = ' + userObject.source_user_id )
+        result = await knex('user_login').where({
+                            source_user_id: userObject.source_user_id,
+                            active: 1,
+                            archive: 0
+                        })
         return {
             result: _.head(result),
             isRegistered: true
