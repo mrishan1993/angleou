@@ -10,6 +10,11 @@ const {OAuth2Client} = require('google-auth-library');
 const {google} = require('googleapis');
 const client = new OAuth2Client([config.googleClientID]);
 const knex = require ("../knex")
+const USER_TYPE = {
+    NATIVE: 1,
+    FACEBOOK: 2,
+    GOOGLE: 3
+}
 const LoginController = {
     UserLoginController: async function(request, h) {
         console.log('inside userLoginController', request)
@@ -62,8 +67,8 @@ const LoginController = {
 var LoginGoogle = async (request) => {
     var userObject = {}
     var ticket = {}
-    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
-    var expirationTime = moment().add(1,'hours').format('YYYY-MM-DD HH:MM:SS')
+    var timeNow = moment().format("YYYY-MM-DD HH:MM:ss")
+    var expirationTime = moment().add(1,'hours').format("YYYY-MM-DD HH:MM:ss")
     var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
         expiresIn: 86400 // in 24 hours
     })
@@ -103,6 +108,7 @@ var LoginGoogle = async (request) => {
         if (userLoginDetails.isRegistered) {
             userObject = {
                 access_token: token,
+                source_user_id: userID,
                 access_token_expiry: expirationTime,
                 source_access_token: ticket.refresh_token ? ticket.refresh_token : undefined, 
                 source_access_token_expiry: undefined,
@@ -110,10 +116,11 @@ var LoginGoogle = async (request) => {
                 updated_at: timeNow,
             }
             userLoginDetails = await UpdateUserLogin(userObject)
+            return userLoginDetails.result
         } else {
             userObject = {
                 source_user_id: userID, 
-                user_type_id: 3,
+                user_type_id: USER_TYPE.GOOGLE,
                 email: ticket.email, 
                 access_token: token, 
                 access_token_expiry: expirationTime, 
@@ -142,8 +149,8 @@ var LoginFacebook = async (request) => {
     var userToken = request.payload.response.accessToken;
     var userID = request.payload.response.userID
     var facebookClientID = config.facebookClientID
-    var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
-    var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
+    var timeNow = moment().format('YYYY-MM-DD HH:MM:ss')
+    var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:ss')
     var sourceExpiration
     var facebookClientKey = config.facebookClientKey
     var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
@@ -182,7 +189,7 @@ var LoginFacebook = async (request) => {
                 // handle registering of the user
                 userObject = {
                     source_user_id: request.payload.response.id, 
-                    user_type_id: 2,
+                    user_type_id: USER_TYPE.FACEBOOK,
                     email: request.payload.response.email, 
                     access_token: token, 
                     access_token_expiry: expirationTime, 
@@ -302,23 +309,22 @@ var IsUserRegistered = async (userID) => {
 // Register the user 
 var RegisterUser = async (userObject) => {
     var result = {}
-    var dbQuery
-    knex("user_login").insert({
-        source_user_id: userObject.source_user_id,
-        user_type_id: userObject.user_type_id,
-        email: userObject.email,
-        access_token: userObject.access_token, 
-        access_token_expiry: userObject.access_token_expiry,
-        source_access_token: userObject.source_access_token, 
-        source_access_token_expiry: userObject.source_access_token_expiry, 
-        last_login: userObject.last_login, 
-        created_at: userObject.created_at, 
-        updated_at: userObject.updated_at, 
-        active: userObject.active, 
-        archive: userObject.archive
-    }) 
+    
     try {
-        await request.app.db.query(dbQuery)
+        await knex("user_login").insert({
+            source_user_id: userObject.source_user_id,
+            user_type_id: userObject.user_type_id,
+            email: userObject.email,
+            access_token: userObject.access_token, 
+            access_token_expiry: userObject.access_token_expiry,
+            source_access_token: userObject.source_access_token, 
+            source_access_token_expiry: userObject.source_access_token_expiry, 
+            last_login: userObject.last_login, 
+            created_at: userObject.created_at, 
+            updated_at: userObject.updated_at, 
+            active: userObject.active, 
+            archive: userObject.archive
+        }) 
         result = await knex('user_login').where({
                             source_user_id: userObject.source_user_id,
                             active: 1,
@@ -339,7 +345,7 @@ var RegisterUser = async (userObject) => {
 var UpdateUserLogin = async (userObject) => {
     try {
         var result = {}
-        knex("user_login")
+        await knex("user_login")
             .where({source_user_id: userObject.source_user_id})
             .update({
                 user_type_id: userObject.user_type_id,
