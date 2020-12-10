@@ -167,7 +167,7 @@ var LoginFacebook = async (request) => {
         tokenLink = tokenLink + 'input_token=' + userToken + '&access_token=' + accessToken
         facebookGraphResult = await GetFacebookGraph(tokenLink)
         console.log('facebookGraph', facebookGraphResult)
-        sourceExpiration = moment(facebookGraphResult.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
+        sourceExpiration = moment(facebookGraphResult.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:ss')
         if (facebookGraphResult && facebookGraphResult.data && facebookGraphResult.data.data && userID === facebookGraphResult.data.data.user_id) {
             // OAuth Verified. 
             // Let the user login 
@@ -176,6 +176,7 @@ var LoginFacebook = async (request) => {
             userLoginDetails = await IsUserRegistered(userID)
             if (userLoginDetails.isRegistered) {
                 userObject = {
+                    source_user_id: userID,
                     access_token: token,
                     access_token_expiry: expirationTime,
                     source_access_token: oAuthResult.access_token,
