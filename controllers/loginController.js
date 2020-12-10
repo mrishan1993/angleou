@@ -101,7 +101,15 @@ var LoginGoogle = async (request) => {
         userID = ticket.sub
         userLoginDetails = await IsUserRegistered(userID)
         if (userLoginDetails.isRegistered) {
-
+            userObject = {
+                access_token: token,
+                access_token_expiry: expirationTime,
+                source_access_token: ticket.refresh_token ? ticket.refresh_token : undefined, 
+                source_access_token_expiry: undefined,
+                last_login: timeNow,
+                updated_at: timeNow,
+            }
+            userLoginDetails = await UpdateUserLogin(userObject)
         } else {
             userObject = {
                 source_user_id: userID, 
@@ -160,7 +168,15 @@ var LoginFacebook = async (request) => {
             // check if the user is already in the database. Update the access token and expiration. Else create a new user. 
             userLoginDetails = await IsUserRegistered(userID)
             if (userLoginDetails.isRegistered) {
-                userLoginDetails = await UpdateUserLogin(request, facebookGraphResult, oAuthResult)
+                userObject = {
+                    access_token: token,
+                    access_token_expiry: expirationTime,
+                    source_access_token: oAuthResult.access_token,
+                    source_access_token_expiry: sourceExpiration,
+                    last_login: timeNow,
+                    updated_at: timeNow,
+                }
+                userLoginDetails = await UpdateUserLogin(userObject)
                 return userLoginDetails.result
             } else {
                 // handle registering of the user
@@ -185,6 +201,9 @@ var LoginFacebook = async (request) => {
 
             // create data entry 
         } else {
+            return {
+                result: {}
+            }
             // logout user 
             // handle unauthorized use here
         }
@@ -317,20 +336,29 @@ var RegisterUser = async (userObject) => {
         }
     }
 }
-var UpdateUserLogin = async (request, sourceToken, oAuthResult) => {
+var UpdateUserLogin = async (userObject) => {
     try {
         var result = {}
-        var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
-            expiresIn: 86400 // in 24 hours
-        })
-        var timeNow = moment().format('YYYY-MM-DD HH:MM:SS')
-        var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:SS')
-        var sourceExpiration = moment(sourceToken.data.data.data_access_expiration_time).format('YYYY-MM-DD HH:MM:SS')
-        var dbQuery = "update user_login set access_token = '" + token + "', access_token_expiry = '" + expirationTime + 
-        "', source_access_token = '" + oAuthResult.access_token + "', source_access_token_expiry = '" + sourceExpiration +
-        "', last_login = '" + timeNow + "', updated_at = '" + timeNow + "' where source_user_id = '" + request.payload.response.id + "'"
-        await request.app.db.query(dbQuery)
-        result = await request.app.db.query('select * from user_login where source_user_id = ' + request.payload.response.userID )
+        knex("user_login")
+            .where({source_user_id: userObject.source_user_id})
+            .update({
+                user_type_id: userObject.user_type_id,
+                email: userObject.email,
+                access_token: userObject.access_token, 
+                access_token_expiry: userObject.access_token_expiry,
+                source_access_token: userObject.source_access_token, 
+                source_access_token_expiry: userObject.source_access_token_expiry, 
+                last_login: userObject.last_login, 
+                created_at: userObject.created_at, 
+                updated_at: userObject.updated_at, 
+                active: userObject.active, 
+                archive: userObject.archive
+            })
+        result = await knex('user_login').where({
+                    source_user_id: userObject.source_user_id,
+                    active: 1,
+                    archive: 0
+                })
         return {
             result : _.head(result),
             isRegistered: true
