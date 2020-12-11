@@ -25,11 +25,11 @@ const LoginController = {
             if (request.payload.response.graphDomain === constants.FACEBOOK) {
                 // handle the facebook login
                 result = await LoginFacebook(request)
-                if (Object.keys(result).length === 0 && result.constructor === Object) {
+                if (result.error) {
                     return {
                         success: false,
                         status: 400,
-                        msg: "No user found"
+                        msg: result.msg || ""
                     }
                 } else {
                     return {
@@ -42,11 +42,11 @@ const LoginController = {
             } else if (request && request.payload && request.payload.response && request.payload.response.code) {
                 // handle google request 
                 result = await LoginGoogle(request)
-                if (Object.keys(result).length === 0 && result.constructor === Object) {
+                if (result.error) {
                     return {
                         success: false,
                         status: 400,
-                        msg: "No user found"
+                        msg: result.msg || ""
                     }
                 } else {
                     return {
@@ -55,7 +55,32 @@ const LoginController = {
                         status: 200,
                     }
                 }
-            } 
+            } else {
+                // native login 
+                var validateKeys = helper.checkRequiredKeysExists(["email", "password"], request.patload.response) 
+                if (!validateKeys.exists) {
+                    return {
+                        success: false,
+                        status: 400,
+                        msg: "Missing key " + validateKeys.key
+                    }
+                } 
+                result = await LoginNative(request)
+                if (result.error) {
+                    return {
+                        success: false,
+                        status: 400,
+                        msg: result.msg || ""
+                    }
+                } else {
+                    return {
+                        success: true,
+                        data: result,
+                        status: 200
+                    }
+                }
+
+            }
         }    
         // check the user id 
         return {
@@ -73,6 +98,14 @@ const LoginController = {
             var password = request.payload.password
             var confirmPassword = request.payload.confirmPassword
             var userLoginDetails = {}
+            var validateKeys = helper.checkRequiredKeysExists(["username", "password", "confirmPassword"], request.payload.response)
+            if (!validateKeys.exists) {
+                return {
+                    success: false,
+                    status: 400,
+                    msg: "Missing key " + validateKeys.key
+                }
+            }
             if (helper.validateEmail(email)) {
                 return {
                     success: false,
@@ -95,6 +128,8 @@ const LoginController = {
                     msg: "User is already registered"
                 }
             } else {
+                var salt = bcrypt.genSaltSync(10);
+                var hash = bcrypt.hashSync(password, salt)
                 var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
                     expiresIn: 86400 // in 24 hours
                 })
@@ -103,6 +138,8 @@ const LoginController = {
                 userObject = {
                     user_type_id: USER_TYPE.NATIVE,
                     email: email,
+                    password: hash,
+                    salt: salt,
                     access_token: token,
                     access_token_expiry: expirationTime,
                     last_login: timeNow,
@@ -129,6 +166,31 @@ const LoginController = {
     }
 };
   
+// Login natively
+var LoginNative = async (request) => {
+    var email = request.payload.response.email
+    var password = request.payload.response.password
+    userLoginDetails = await IsUserRegisteredByEmail(email)
+    if (userLoginDetails.IsUserRegistered) {
+        var hash = bcrypt.hashSync(password, userLoginDetails.result.salt);
+        if (hash === userLoginDetails.result.password) {
+            // pass validation 
+            // let the user login 
+            return userLoginDetails.result
+        } else {
+            return {
+                error: true,
+                msg: "Incorrect Username or Password"
+
+            }
+        }
+    } else {
+        return {
+            error: true,
+            msg: "No user found"
+        }
+    }
+}
 // Login through Google 
 var LoginGoogle = async (request) => {
     var userObject = {}
@@ -205,7 +267,8 @@ var LoginGoogle = async (request) => {
         // const domain = payload['hd'];
     } catch (e) {
         return {
-            result: {}
+            error: true,
+            msg: "Something went wrong"
         }
     }
 }
@@ -276,14 +339,16 @@ var LoginFacebook = async (request) => {
             // create data entry 
         } else {
             return {
-                result: {}
+                error: true,
+                msg: "Unauthorized user"
             }
             // logout user 
             // handle unauthorized use here
         }
     } else {
         return {
-            result: {}
+            error: true,
+            msg: "Unauthorized user"
         }
     }
     
