@@ -1,6 +1,7 @@
 
 const config = require('../config');
 const constants = require('../constants');
+const helper = require("../lib/helper")
 const axios = require('axios');
 var _ = require('lodash')
 var jwt = require('jsonwebtoken');
@@ -28,6 +29,7 @@ const LoginController = {
                     return {
                         success: false,
                         status: 400,
+                        msg: "No user found"
                     }
                 } else {
                     return {
@@ -44,6 +46,7 @@ const LoginController = {
                     return {
                         success: false,
                         status: 400,
+                        msg: "No user found"
                     }
                 } else {
                     return {
@@ -58,9 +61,72 @@ const LoginController = {
         return {
             success: false,
             status: 400,
-            data: {}
+            msg: "Something went wrong!"
         }
     },
+
+    UserSignupController: async function (request, h) {
+        console.log("Inside Signup Controller")
+        var result = {}
+        if (request && request.payload && request.payload.response) {
+            var email = request.payload.email
+            var password = request.payload.password
+            var confirmPassword = request.payload.confirmPassword
+            var userLoginDetails = {}
+            if (helper.validateEmail(email)) {
+                return {
+                    success: false,
+                    status: 400,
+                    msg: "Invalid email"
+                }
+            }
+            if (password !== confirmPassword) {
+                return {
+                    success: false,
+                    status: 400,
+                    msg: "Passwords do not match"
+                }
+            }
+            userLoginDetails = await IsUserRegisteredByEmail(email)
+            if (userLoginDetails.isRegistered) {
+                return {
+                    success: false,
+                    status: 400,
+                    msg: "User is already registered"
+                }
+            } else {
+                var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+                    expiresIn: 86400 // in 24 hours
+                })
+                var expirationTime = moment().add(1,'hours').format("YYYY-MM-DD HH:MM:ss")
+                var timeNow = moment().format("YYYY-MM-DD HH:MM:ss")
+                userObject = {
+                    user_type_id: USER_TYPE.NATIVE,
+                    email: email,
+                    access_token: token,
+                    access_token_expiry: expirationTime,
+                    last_login: timeNow,
+                    created_at: timeNow,
+                    updated_at: timeNow,
+                    active: 1,
+                    archive: 0
+                }
+                userLoginDetails = await RegisterUser(userObject) 
+                return {
+                    success: true,
+                    data: userLoginDetails.result,
+                    status: 200,
+                }
+            }
+
+        } else {
+            return {
+                success: false,
+                status: 400,
+                msg: "Something went wrong!"
+            }
+        }
+    }
 };
   
 // Login through Google 
@@ -110,7 +176,7 @@ var LoginGoogle = async (request) => {
                 access_token: token,
                 source_user_id: userID,
                 access_token_expiry: expirationTime,
-                source_access_token: ticket.refresh_token ? ticket.refresh_token : undefined, 
+                source_access_token: result.refresh_token ? result.refresh_token : undefined, 
                 source_access_token_expiry: undefined,
                 last_login: timeNow,
                 updated_at: timeNow,
@@ -276,6 +342,34 @@ var GetFacebookGraph = async (tokenLink) => {
     } catch (e) {
         console.log('Error while fetching graph', e)
         return {}
+    }
+}
+
+var IsUserRegisteredByEmail = async (email) => {
+    var email = email
+    try {
+        var result = await knex('user_login').where({
+                            source_user_id: userID,
+                            active: 1,
+                            archive: 0
+                        })
+        if (result && result.length > 0) {
+            // handle problem if rows are more than 1
+            return {
+                result : _.head(result),
+                isRegistered: true
+            }
+        } 
+        return {
+            result: {},
+            isRegistered: false
+        }
+    } catch (e) {
+        console.log("Exception is ", e)
+        return {
+            result: {},
+            isRegistered: false
+        }
     }
 }
 // Check if the user already exists
