@@ -5,6 +5,16 @@ It contains routes to create end points for the front end services and controlle
 
 Migrations are needed to be regularly updated when there are changes in the database schema. Will employ MySQL and Mongo. 
 
+#### Steps 
+- Install the dependencies `npm install`
+- Run migrations via `migrations.sql` file
+- Start the backend service `node . `
+- Use the `Babbage microservice` for the front end
+	- It has OAuth Facebook and Google login
+	- You can also create your own front end. It works just fine. But remember to use the same API keys. 
+	- For babbage, `npm install && npm start`	
+	
+
 #### Coding Conventions 
 
 - Functions are to be named with PascalCasing. 
