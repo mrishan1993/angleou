@@ -20,9 +20,9 @@ const LoginController = {
     UserLoginController: async function(request, h) {
         console.log('inside userLoginController', request)
         var result = {}
-        if (request && request.payload && request.payload.response) {
+        if (request && request.payload) {
             // handle the request 
-            if (request.payload.response.graphDomain === constants.FACEBOOK) {
+            if (request.payload.response && request.payload.response.graphDomain === constants.FACEBOOK) {
                 // handle the facebook login
                 result = await LoginFacebook(request)
                 if (result.error) {
@@ -57,7 +57,7 @@ const LoginController = {
                 }
             } else {
                 // native login 
-                var validateKeys = helper.checkRequiredKeysExists(["email", "password"], request.patload.response) 
+                var validateKeys = helper.checkRequiredKeysExists(["email", "password"], request.payload) 
                 if (!validateKeys.exists) {
                     return {
                         success: false,
@@ -93,12 +93,12 @@ const LoginController = {
     UserSignupController: async function (request, h) {
         console.log("Inside Signup Controller")
         var result = {}
-        if (request && request.payload && request.payload.response) {
+        if (request && request.payload) {
             var email = request.payload.email
             var password = request.payload.password
             var confirmPassword = request.payload.confirmPassword
             var userLoginDetails = {}
-            var validateKeys = helper.checkRequiredKeysExists(["username", "password", "confirmPassword"], request.payload.response)
+            var validateKeys = helper.checkRequiredKeysExists(["email", "password", "confirmPassword"], request.payload)
             if (!validateKeys.exists) {
                 return {
                     success: false,
@@ -106,7 +106,7 @@ const LoginController = {
                     msg: "Missing key " + validateKeys.key
                 }
             }
-            if (helper.validateEmail(email)) {
+            if (!helper.validateEmail(email)) {
                 return {
                     success: false,
                     status: 400,
@@ -130,7 +130,7 @@ const LoginController = {
             } else {
                 var salt = bcrypt.genSaltSync(10);
                 var hash = bcrypt.hashSync(password, salt)
-                var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+                var token = jwt.sign({id: request.payload.email}, config.jwtSecret, {
                     expiresIn: 86400 // in 24 hours
                 })
                 var expirationTime = moment().add(1,'hours').format("YYYY-MM-DD HH:MM:ss")
@@ -168,10 +168,10 @@ const LoginController = {
   
 // Login natively
 var LoginNative = async (request) => {
-    var email = request.payload.response.email
-    var password = request.payload.response.password
+    var email = request.payload.email
+    var password = request.payload.password
     userLoginDetails = await IsUserRegisteredByEmail(email)
-    if (userLoginDetails.IsUserRegistered) {
+    if (userLoginDetails.isRegistered) {
         var hash = bcrypt.hashSync(password, userLoginDetails.result.salt);
         if (hash === userLoginDetails.result.password) {
             // pass validation 
@@ -414,7 +414,7 @@ var IsUserRegisteredByEmail = async (email) => {
     var email = email
     try {
         var result = await knex('user_login').where({
-                            source_user_id: userID,
+                            email: email,
                             active: 1,
                             archive: 0
                         })
@@ -475,6 +475,8 @@ var RegisterUser = async (userObject) => {
             source_user_id: userObject.source_user_id,
             user_type_id: userObject.user_type_id,
             email: userObject.email,
+            password: userObject.password,
+            salt: userObject.salt,
             access_token: userObject.access_token, 
             access_token_expiry: userObject.access_token_expiry,
             source_access_token: userObject.source_access_token, 
@@ -485,11 +487,20 @@ var RegisterUser = async (userObject) => {
             active: userObject.active, 
             archive: userObject.archive
         }) 
-        result = await knex('user_login').where({
-                            source_user_id: userObject.source_user_id,
-                            active: 1,
-                            archive: 0
-                        })
+        if (userObject.source_user_id) {
+            result = await knex('user_login').where({
+                source_user_id: userObject.source_user_id,
+                active: 1,
+                archive: 0
+            })
+        } else {
+            result = await knex('user_login').where({
+                email: userObject.email,
+                active: 1,
+                archive: 0
+            })
+        }
+        
         return {
             result: _.head(result),
             isRegistered: true

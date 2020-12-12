@@ -41,6 +41,7 @@ const init = async () => {
   });
   server.route(ErrorRoute.NotFoundRoute);
   server.route(LoginRoute.UserLoginRoute);
+  server.route(LoginRoute.SignupRoute);
 
   await server.start();
 
