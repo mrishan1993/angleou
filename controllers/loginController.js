@@ -22,7 +22,7 @@ const LoginController = {
         var result = {}
         if (request && request.payload) {
             // handle the request 
-            if (request.payload.response && request.payload.response.graphDomain === constants.FACEBOOK) {
+            if (request.payload && request.payload.graphDomain === constants.FACEBOOK) {
                 // handle the facebook login
                 result = await LoginFacebook(request)
                 if (result.error) {
@@ -39,7 +39,7 @@ const LoginController = {
                     }
                 }
                 
-            } else if (request && request.payload && request.payload.response && request.payload.response.code) {
+            } else if (request && request.payload && request.payload.code) {
                 // handle google request 
                 result = await LoginGoogle(request)
                 if (result.error) {
@@ -121,6 +121,13 @@ const LoginController = {
                 }
             }
             userLoginDetails = await IsUserRegisteredByEmail(email)
+            if (userLoginDetails.error) {
+                return {
+                    success: false,
+                    status: 400,
+                    msg: "Something went wrong!"
+                }
+            }
             if (userLoginDetails.isRegistered) {
                 return {
                     success: false,
@@ -149,6 +156,13 @@ const LoginController = {
                     archive: 0
                 }
                 userLoginDetails = await RegisterUser(userObject) 
+                if (userLoginDetails.error) {
+                    return {
+                        success: false,
+                        status: 400,
+                        msg: "Something went wrong!"
+                    }
+                }
                 return {
                     success: true,
                     data: userLoginDetails.result,
@@ -171,6 +185,12 @@ var LoginNative = async (request) => {
     var email = request.payload.email
     var password = request.payload.password
     userLoginDetails = await IsUserRegisteredByEmail(email)
+    if (userLoginDetails.error) {
+        return {
+            error: true,
+            msg: userLoginDetails.msg
+        }
+    }
     if (userLoginDetails.isRegistered) {
         var hash = bcrypt.hashSync(password, userLoginDetails.result.salt);
         if (hash === userLoginDetails.result.password) {
@@ -197,7 +217,7 @@ var LoginGoogle = async (request) => {
     var ticket = {}
     var timeNow = moment().format("YYYY-MM-DD HH:MM:ss")
     var expirationTime = moment().add(1,'hours').format("YYYY-MM-DD HH:MM:ss")
-    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+    var token = jwt.sign({id: request.payload.id}, config.jwtSecret, {
         expiresIn: 86400 // in 24 hours
     })
     var userID;
@@ -207,7 +227,7 @@ var LoginGoogle = async (request) => {
         var obj = {
             client_id: config.googleClientID,
             client_secret: config.googleClientSecret,
-            code: request.payload.response.code,
+            code: request.payload.code,
             grant_type: 'authorization_code',
             redirect_uri: config.redirectURL
         }
@@ -233,6 +253,12 @@ var LoginGoogle = async (request) => {
         )
         userID = ticket.sub
         userLoginDetails = await IsUserRegistered(userID)
+        if (userLoginDetails.error) {
+            return {
+                error: true,
+                msg: userLoginDetails.msg
+            }
+        }
         if (userLoginDetails.isRegistered) {
             userObject = {
                 access_token: token,
@@ -244,6 +270,12 @@ var LoginGoogle = async (request) => {
                 updated_at: timeNow,
             }
             userLoginDetails = await UpdateUserLogin(userObject)
+            if (userLoginDetails.error) {
+                return {
+                    error: true,
+                    msg: userLoginDetails.msg
+                }
+            }
             return userLoginDetails.result
         } else {
             userObject = {
@@ -261,6 +293,12 @@ var LoginGoogle = async (request) => {
                 archive: 0
             }
             userLoginDetails = await RegisterUser(userObject) 
+            if (userLoginDetails.error) {
+                return {
+                    error: true,
+                    msg: userLoginDetails.msg
+                }
+            }
             return userLoginDetails.result
         }
         // If request specified a G Suite domain:
@@ -275,14 +313,14 @@ var LoginGoogle = async (request) => {
 
 // Login through facebook 
 var LoginFacebook = async (request) => {
-    var userToken = request.payload.response.accessToken;
-    var userID = request.payload.response.userID
+    var userToken = request.payload.accessToken;
+    var userID = request.payload.userID
     var facebookClientID = config.facebookClientID
     var timeNow = moment().format('YYYY-MM-DD HH:MM:ss')
     var expirationTime = moment().add(24,'hours').format('YYYY-MM-DD HH:MM:ss')
     var sourceExpiration
     var facebookClientKey = config.facebookClientKey
-    var token = jwt.sign({id: request.payload.response.id}, config.jwtSecret, {
+    var token = jwt.sign({id: request.payload.id}, config.jwtSecret, {
         expiresIn: 86400 // in 24 hours
     })
     var userObject = {}
@@ -300,9 +338,15 @@ var LoginFacebook = async (request) => {
         if (facebookGraphResult && facebookGraphResult.data && facebookGraphResult.data.data && userID === facebookGraphResult.data.data.user_id) {
             // OAuth Verified. 
             // Let the user login 
-            expiryTime = request.payload.response.data_access_expiration_time
+            expiryTime = request.payload.data_access_expiration_time
             // check if the user is already in the database. Update the access token and expiration. Else create a new user. 
             userLoginDetails = await IsUserRegistered(userID)
+            if (userLoginDetails.error) {
+                return {
+                    error: true,
+                    msg: userLoginDetails.msg
+                }
+            }
             if (userLoginDetails.isRegistered) {
                 userObject = {
                     source_user_id: userID,
@@ -314,13 +358,19 @@ var LoginFacebook = async (request) => {
                     updated_at: timeNow,
                 }
                 userLoginDetails = await UpdateUserLogin(userObject)
+                if (userLoginDetails.error) {
+                    return {
+                        error: true,
+                        msg: userLoginDetails.msg
+                    }
+                }
                 return userLoginDetails.result
             } else {
                 // handle registering of the user
                 userObject = {
-                    source_user_id: request.payload.response.id, 
+                    source_user_id: request.payload.id, 
                     user_type_id: USER_TYPE.FACEBOOK,
-                    email: request.payload.response.email, 
+                    email: request.payload.email, 
                     access_token: token, 
                     access_token_expiry: expirationTime, 
                     source_access_token: oAuthResult.access_token, 
@@ -332,6 +382,12 @@ var LoginFacebook = async (request) => {
                     archive: 0
                 }
                 userLoginDetails = await RegisterUser(userObject) 
+                if (userLoginDetails.error) {
+                    return {
+                        error: true,
+                        msg: userLoginDetails.msg
+                    }
+                }
                 return userLoginDetails.result
             }
             
@@ -432,8 +488,8 @@ var IsUserRegisteredByEmail = async (email) => {
     } catch (e) {
         console.log("Exception is ", e)
         return {
-            result: {},
-            isRegistered: false
+            error: true,
+            msg: e
         }
     }
 }
@@ -461,8 +517,8 @@ var IsUserRegistered = async (userID) => {
     } catch (e) {
         console.log('Error while finding user', e)
         return {
-            result: {},
-            isRegistered: false
+            error: true,
+            msg: e
         }
     }
 }
@@ -508,8 +564,8 @@ var RegisterUser = async (userObject) => {
     } catch (e) {
         console.log('Error while adding user', e)
         return {
-            result: {},
-            isRegistered: false
+            error: true,
+            msg: e
         }
     }
 }
@@ -543,8 +599,8 @@ var UpdateUserLogin = async (userObject) => {
     } catch (e) {
         console.log('Exception while updating user log', e)
         return {
-            result : {},
-            isRegistered: true
+            error: true,
+            msg: e
         }
     }
 }
