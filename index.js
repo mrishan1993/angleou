@@ -3,6 +3,8 @@
 const Hapi = require('@hapi/hapi');
 var ErrorRoute = require('./routes/ErrorRoute.js');
 var LoginRoute = require('./routes/LoginRoute.js');
+var SurveyRoute = require('./routes/SurveyRoute.js');
+var QuestionRoute = require('./routes/QuestionRoute.js');
 var auth = require('./middleware/auth.js');
 const config = require('./config')
 
@@ -32,7 +34,7 @@ const init = async () => {
         host: config.hostname,
         user: config.mySQLUsername,
         password: config.mySQLPassword,
-        database: 'angelou'
+        database: 'cyberphilan'
     }
   });
   
@@ -42,6 +44,9 @@ const init = async () => {
   server.route(ErrorRoute.NotFoundRoute);
   server.route(LoginRoute.UserLoginRoute);
   server.route(LoginRoute.SignupRoute);
+  server.route(SurveyRoute.GetSurveyQuestions);
+  server.route(SurveyRoute.PostSurveyQuestionAnswers);
+  server.route(QuestionRoute.GetAllQuestions);
 
   await server.start();
 
