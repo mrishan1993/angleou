@@ -604,6 +604,38 @@ var UpdateUserLogin = async (userObject) => {
         }
     }
 }
+
+
+var CreateSession = async (userObject) => {
+    try {
+        var result = {}
+        // var user_id = userObject.userID
+        var user_id = 1
+        // creating user lives session
+        await knex("User_Lives_Session").insert({
+            user_id: user_id,
+            created_date: moment().format("YYYY-MM-DD HH:mm:ss")
+        })
+        await knex("User_Score_Session").insert({
+            user_id: user_id,
+            created_date: moment().format("YYYY-MM-DD HH:mm:ss")
+        })
+        // check if user exists 
+        if (IsUserRegistered().isRegistered) {
+            // leave
+        } else {
+            // create user scoreboard
+            await knex("User_Scoreboard").insert({
+                user_id: user_id,
+            })
+        }
+        return true
+    } catch (e) {
+        return false
+    }
+}
+
+CreateSession()
 module.exports = LoginController;
   
 

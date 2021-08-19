@@ -1,21 +1,6 @@
 
-const config = require('../config');
-const constants = require('../constants');
-const helper = require("../lib/helper")
-const axios = require('axios');
 var _ = require('lodash')
-var jwt = require('jsonwebtoken');
-var bcrypt = require('bcryptjs');
-var moment = require('moment')
-const {OAuth2Client} = require('google-auth-library');
-const {google} = require('googleapis');
-const client = new OAuth2Client([config.googleClientID]);
 const knex = require ("../knex")
-const USER_TYPE = {
-    NATIVE: 1,
-    FACEBOOK: 2,
-    GOOGLE: 3
-}
 const SCORE_ADDED = 10
 const LIFE_DEDUCTED = 1
 const DEFAULT_LIVES = 3
