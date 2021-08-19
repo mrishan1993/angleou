@@ -21,6 +21,11 @@ const QuestionRoute = {
     path: "/refreshlives",
     handler: QuestionController.RefreshLives
   },
+  DeductPoints: {
+    method: "*",
+    path: "/deductpoints",
+    handler: QuestionController.DeductPoints
+  },
 };
 
 module.exports = QuestionRoute;

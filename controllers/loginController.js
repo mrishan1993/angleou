@@ -98,6 +98,7 @@ const LoginController = {
             var password = request.payload.password
             var confirmPassword = request.payload.confirmPassword
             var userLoginDetails = {}
+            var sessionDetails = {}
             var validateKeys = helper.checkRequiredKeysExists(["email", "password", "confirmPassword"], request.payload)
             if (!validateKeys.exists) {
                 return {
@@ -140,22 +141,27 @@ const LoginController = {
                 var token = jwt.sign({id: request.payload.email}, config.jwtSecret, {
                     expiresIn: 86400 // in 24 hours
                 })
-                var expirationTime = moment().add(1,'hours').format("YYYY-MM-DD HH:MM:ss")
+                var gender = request.payload.gender
+                var age = request.payload.age
+                var expirationTime = moment().add(24,'hours').format("YYYY-MM-DD HH:MM:ss")
                 var timeNow = moment().format("YYYY-MM-DD HH:MM:ss")
                 userObject = {
-                    user_type_id: USER_TYPE.NATIVE,
-                    email: email,
+                    username: email,
                     password: hash,
                     salt: salt,
-                    access_token: token,
-                    access_token_expiry: expirationTime,
-                    last_login: timeNow,
-                    created_at: timeNow,
-                    updated_at: timeNow,
-                    active: 1,
-                    archive: 0
+                    gender: gender,
+                    age: age,
+                    created_date: moment().format("YYYY-MM-DD HH:mm:ss"),
                 }
                 userLoginDetails = await RegisterUser(userObject) 
+                sessionObject = {
+                    user_id: userLoginDetails.result.id,
+                    created_date: moment().format("YYYY-MM-DD HH:mm:ss"),
+                    access_token: token,
+                    expiration_time: expirationTime
+                }
+                session_id = await CreateSession(userLoginDetails, userObject, sessionObject)
+                
                 if (userLoginDetails.error) {
                     return {
                         success: false,
@@ -163,9 +169,18 @@ const LoginController = {
                         msg: "Something went wrong!"
                     }
                 }
+                userLoginDetails.result.session_id = session_id
+                var finalResult = {
+                    id: userLoginDetails.result.id,
+                    age: userLoginDetails.result.age,
+                    gender: userLoginDetails.result.gender,
+                    username: userLoginDetails.result.username,
+                    session_id: userLoginDetails.result.session_id,
+                    access_token: token
+                }
                 return {
                     success: true,
-                    data: userLoginDetails.result,
+                    data: finalResult,
                     status: 200,
                 }
             }
@@ -184,6 +199,11 @@ const LoginController = {
 var LoginNative = async (request) => {
     var email = request.payload.email
     var password = request.payload.password
+    var token = jwt.sign({id: request.payload.email}, config.jwtSecret, {
+        expiresIn: 86400 // in 24 hours
+    })
+    var expirationTime = moment().add(24,'hours').format("YYYY-MM-DD HH:MM:ss")
+    var sessionObject
     userLoginDetails = await IsUserRegisteredByEmail(email)
     if (userLoginDetails.error) {
         return {
@@ -195,8 +215,23 @@ var LoginNative = async (request) => {
         var hash = bcrypt.hashSync(password, userLoginDetails.result.salt);
         if (hash === userLoginDetails.result.password) {
             // pass validation 
-            // let the user login 
-            return userLoginDetails.result
+            // let the user login
+            sessionObject = {
+                user_id: userLoginDetails.result.id,
+                access_token: token,
+                expiration_time: expirationTime
+            }
+            session_id = await CreateSession(userLoginDetails, {}, sessionObject)
+            userLoginDetails.result.session_id = session_id
+            var finalResult = {
+                id: userLoginDetails.result.id,
+                age: userLoginDetails.result.age,
+                gender: userLoginDetails.result.gender,
+                username: userLoginDetails.result.username,
+                session_id: userLoginDetails.result.session_id,
+                access_token: token
+            }
+            return finalResult
         } else {
             return {
                 error: true,
@@ -280,8 +315,7 @@ var LoginGoogle = async (request) => {
         } else {
             userObject = {
                 source_user_id: userID, 
-                user_type_id: USER_TYPE.GOOGLE,
-                email: ticket.email, 
+                username: ticket.email, 
                 access_token: token, 
                 access_token_expiry: expirationTime, 
                 source_access_token: ticket.refresh_token ? ticket.refresh_token : undefined, 
@@ -469,8 +503,8 @@ var GetFacebookGraph = async (tokenLink) => {
 var IsUserRegisteredByEmail = async (email) => {
     var email = email
     try {
-        var result = await knex('user_login').where({
-                            email: email,
+        var result = await knex('Users').where({
+                            username: email,
                             active: 1,
                             archive: 0
                         })
@@ -527,31 +561,17 @@ var RegisterUser = async (userObject) => {
     var result = {}
     
     try {
-        await knex("user_login").insert({
-            source_user_id: userObject.source_user_id,
-            user_type_id: userObject.user_type_id,
-            email: userObject.email,
-            password: userObject.password,
-            salt: userObject.salt,
-            access_token: userObject.access_token, 
-            access_token_expiry: userObject.access_token_expiry,
-            source_access_token: userObject.source_access_token, 
-            source_access_token_expiry: userObject.source_access_token_expiry, 
-            last_login: userObject.last_login, 
-            created_at: userObject.created_at, 
-            updated_at: userObject.updated_at, 
-            active: userObject.active, 
-            archive: userObject.archive
-        }) 
+        // create user
+        await knex("Users").insert(userObject) 
         if (userObject.source_user_id) {
-            result = await knex('user_login').where({
+            result = await knex('Users').where({
                 source_user_id: userObject.source_user_id,
                 active: 1,
                 archive: 0
             })
         } else {
-            result = await knex('user_login').where({
-                email: userObject.email,
+            result = await knex('Users').where({
+                username: userObject.username,
                 active: 1,
                 archive: 0
             })
@@ -606,11 +626,25 @@ var UpdateUserLogin = async (userObject) => {
 }
 
 
-var CreateSession = async (userObject) => {
+var CreateSession = async (userLoginDetails, userObject, sessionObject) => {
     try {
         var result = {}
         // var user_id = userObject.userID
-        var user_id = 1
+        var user_id = userLoginDetails.result.id
+        var result, session_id
+        var email = userLoginDetails.result.username
+
+        // creating user session 
+        if (userLoginDetails.isRegistered) {
+            await knex("User_Session").update({
+                access_token: sessionObject.access_token,
+                expiration_time: sessionObject.expiration_time
+            })
+        } else {
+            await knex("User_Session").insert(sessionObject)
+        }
+        
+
         // creating user lives session
         await knex("User_Lives_Session").insert({
             user_id: user_id,
@@ -621,7 +655,7 @@ var CreateSession = async (userObject) => {
             created_date: moment().format("YYYY-MM-DD HH:mm:ss")
         })
         // check if user exists 
-        if (IsUserRegistered().isRegistered) {
+        if (userLoginDetails.isRegistered) {
             // leave
         } else {
             // create user scoreboard
@@ -629,13 +663,17 @@ var CreateSession = async (userObject) => {
                 user_id: user_id,
             })
         }
-        return true
+        result = await knex.select().from("User_Lives_Session").where({
+            user_id: user_id
+        })
+        result = _.head(result)
+        session_id = result.id
+        return session_id
     } catch (e) {
         return false
     }
 }
 
-CreateSession()
 module.exports = LoginController;
   
 

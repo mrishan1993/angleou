@@ -50,6 +50,7 @@ const init = async () => {
   server.route(QuestionRoute.GetQuestionByID);
   server.route(QuestionRoute.AnswerQuestionByID);
   server.route(QuestionRoute.RefreshLives);
+  server.route(QuestionRoute.DeductPoints);
 
   await server.start();
 

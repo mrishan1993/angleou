@@ -4,6 +4,7 @@ const knex = require ("../knex")
 const SCORE_ADDED = 10
 const LIFE_DEDUCTED = 1
 const DEFAULT_LIVES = 3
+const DEDUCT_POINTS = 10
 const QuestionController = {
     GetAllQuestions: async function(request, h) {
         console.log('inside GetAllQuestions', request)
@@ -90,6 +91,67 @@ const QuestionController = {
                     }
                 ).where ({
                     id: session_id
+                })
+                
+                return {
+                    success: true,
+                }
+            } catch (e) {
+                console.log('Exception while updating user log', e)
+                return {
+                    error: true,
+                    success: false,
+                    msg: e
+                }
+            }
+        }    
+        // check the user id 
+        return {
+            success: false,
+            status: 400,
+            msg: "Something went wrong!"
+        }
+    },
+    DeductPoints: async function(request, h) {
+        console.log('inside DeductPoints', request)
+        var result = {}
+        if (request && request.payload) {
+            try {
+                var result = {}
+                var session_id = request.payload.session_id
+                var user_id = request.payload.user_id
+                var user_score_session
+                var user_scorecard
+                user_score_session = await knex.select().from('User_Score_Session').where({
+                    active: 1,
+                    archive: 0,
+                    id: session_id
+                })
+                user_score_session = _.head(user_score_session)
+                user_score_session.score = user_score_session.score - DEDUCT_POINTS
+
+                
+                user_scorecard = await knex.select().from('User_Scoreboard').where({
+                    active: 1,
+                    archive: 0,
+                    id: session_id
+                })
+                user_scorecard = _.head(user_scorecard)
+                user_scorecard.total_score = user_scorecard.total_score - DEDUCT_POINTS
+                await knex('User_Score_Session').update(
+                    {
+                        score: user_score_session.score
+                    }
+                ).where ({
+                    id: session_id
+                })
+
+                await knex('User_Scoreboard').update(
+                    {
+                        total_score: user_scorecard.total_score
+                    }
+                ).where ({
+                    user_id: user_id
                 })
                 
                 return {
