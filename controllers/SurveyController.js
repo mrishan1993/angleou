@@ -71,7 +71,8 @@ const SurveyController = {
                         question_five: question_five,
                         question_six: question_six,
                         experience: experience
-                    })
+                    }
+                )
                 
                 return {
                     success: true,

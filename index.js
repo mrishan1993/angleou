@@ -47,6 +47,8 @@ const init = async () => {
   server.route(SurveyRoute.GetSurveyQuestions);
   server.route(SurveyRoute.PostSurveyQuestionAnswers);
   server.route(QuestionRoute.GetAllQuestions);
+  server.route(QuestionRoute.GetQuestionByID);
+  server.route(QuestionRoute.AnswerQuestionByID);
 
   await server.start();
 
