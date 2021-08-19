@@ -49,6 +49,7 @@ const init = async () => {
   server.route(QuestionRoute.GetAllQuestions);
   server.route(QuestionRoute.GetQuestionByID);
   server.route(QuestionRoute.AnswerQuestionByID);
+  server.route(QuestionRoute.RefreshLives);
 
   await server.start();
 

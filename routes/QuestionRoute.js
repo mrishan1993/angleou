@@ -15,7 +15,12 @@ const QuestionRoute = {
     method: "*",
     path: "/answer",
     handler: QuestionController.AnswerQuestionByID
-}
+  },
+  RefreshLives: {
+    method: "*",
+    path: "/refreshlives",
+    handler: QuestionController.RefreshLives
+  },
 };
 
 module.exports = QuestionRoute;

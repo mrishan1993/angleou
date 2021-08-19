@@ -18,6 +18,7 @@ const USER_TYPE = {
 }
 const SCORE_ADDED = 10
 const LIFE_DEDUCTED = 1
+const DEFAULT_LIVES = 3
 const QuestionController = {
     GetAllQuestions: async function(request, h) {
         console.log('inside GetAllQuestions', request)
@@ -65,6 +66,48 @@ const QuestionController = {
                 
                 return {
                     result : _.head(result),
+                    success: true,
+                }
+            } catch (e) {
+                console.log('Exception while updating user log', e)
+                return {
+                    error: true,
+                    success: false,
+                    msg: e
+                }
+            }
+        }    
+        // check the user id 
+        return {
+            success: false,
+            status: 400,
+            msg: "Something went wrong!"
+        }
+    },
+    RefreshLives: async function(request, h) {
+        console.log('inside GetQuestionByID', request)
+        var result = {}
+        if (request && request.payload) {
+            try {
+                var result = {}
+                var session_id = request.payload.session_id
+                var user_live_session
+                user_live_session = await knex.select().from('User_Lives_Session').where({
+                    active: 1,
+                    archive: 0,
+                    id: session_id
+                })
+                user_live_session = _.head(user_live_session)
+                user_live_session.lives_remaining = DEFAULT_LIVES
+                await knex('User_Lives_Session').update(
+                    {
+                        lives_remaining: user_live_session.lives_remaining
+                    }
+                ).where ({
+                    id: session_id
+                })
+                
+                return {
                     success: true,
                 }
             } catch (e) {
