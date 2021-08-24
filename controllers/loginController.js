@@ -296,7 +296,7 @@ var LoginGoogle = async (request) => {
         }
         if (userLoginDetails.isRegistered) {
             userObject = {
-                access_token: token,
+                access_token: result.refresh_token,
                 source_user_id: userID,
                 access_token_expiry: expirationTime,
                 source_access_token: result.refresh_token ? result.refresh_token : undefined, 

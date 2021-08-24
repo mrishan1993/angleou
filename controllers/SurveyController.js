@@ -5,7 +5,7 @@ const SurveyController = {
     GetSurveyQuestions: async function(request, h) {
         console.log('inside GetSurveyQuestions', request)
         var result = {}
-        if (request && request.payload) {
+        if (request) {
             try {
                 var result = {}
                 result = await knex.select('id', 'question_one', 'question_two',
