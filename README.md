@@ -1,5 +1,5 @@
 # Angelou 
-This is the backend microservice for handling login functionality. This has to be a plug and play service. First to be used with Stuti :heart: project for social network. It handles Facebook OAuth, Google OAuth and Native logins. 
+This is the backend microservice for handling login functionality. This has to be a plug and play service. It handles Facebook OAuth, Google OAuth and Native logins. 
 
 It contains routes to create end points for the front end services and controllers to create business logic. Configurations store all the key and passwords. 
 
